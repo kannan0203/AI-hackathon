@@ -33,13 +33,15 @@ export default function SettingsPage() {
             <div className="flex gap-2">
               <Info className="w-5 h-5 text-blue-500 flex-shrink-0" />
               <div>
-                <p className="text-blue-900 font-medium text-sm">Configure OpenAI API Key</p>
+                <p className="text-blue-900 font-medium text-sm">Configure Google Gemini API Key</p>
                 <p className="text-blue-800 text-sm mt-1">
-                  To enable full AI features, add your OpenAI API key to the{' '}
-                  <code className="bg-blue-100 px-1 rounded">.env</code> file:
+                  Get a <strong>free</strong> key at{' '}
+                  <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noreferrer"
+                    className="underline font-medium">aistudio.google.com</a>
+                  {' '}then add it to the <code className="bg-blue-100 px-1 rounded">.env</code> file:
                 </p>
                 <code className="block mt-2 bg-blue-900 text-blue-100 p-2 rounded text-xs">
-                  OPENAI_API_KEY=your_key_here
+                  GOOGLE_API_KEY=your_key_here
                 </code>
                 <p className="text-blue-700 text-xs mt-2">Then restart the backend server.</p>
               </div>
@@ -91,7 +93,7 @@ export default function SettingsPage() {
           <p><strong>Tagline:</strong> "From Raw Data to Explainable Decisions."</p>
           <p><strong>Backend:</strong> FastAPI + Python</p>
           <p><strong>Frontend:</strong> React + TypeScript + Vite</p>
-          <p><strong>AI:</strong> OpenAI GPT-3.5 (or Demo Mode)</p>
+          <p><strong>AI:</strong> Google Gemini 1.5 Flash (or Demo Mode)</p>
           <p><strong>Database:</strong> SQLite</p>
         </div>
       </div>

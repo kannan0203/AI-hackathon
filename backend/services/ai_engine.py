@@ -7,27 +7,29 @@ from services.data_loader import detect_columns
 from services.data_analyzer import get_product_analysis, get_region_analysis, get_trend_analysis
 
 try:
-    from openai import OpenAI
-    OPENAI_AVAILABLE = True
+    import google.generativeai as genai
+    GEMINI_AVAILABLE = True
 except ImportError:
-    OPENAI_AVAILABLE = False
+    GEMINI_AVAILABLE = False
 
 
-def get_openai_client():
-    api_key = os.getenv("OPENAI_API_KEY", "")
-    if not api_key or api_key == "your_openai_api_key_here":
+def get_gemini_model():
+    """Return a configured Gemini model or None if key missing."""
+    api_key = os.getenv("GOOGLE_API_KEY", "")
+    if not api_key or api_key == "your_google_api_key_here":
         return None
-    if not OPENAI_AVAILABLE:
+    if not GEMINI_AVAILABLE:
         return None
     try:
-        return OpenAI(api_key=api_key)
+        genai.configure(api_key=api_key)
+        return genai.GenerativeModel("gemini-1.5-flash")
     except Exception:
         return None
 
 
 def is_demo_mode() -> bool:
-    api_key = os.getenv("OPENAI_API_KEY", "")
-    return not api_key or api_key == "your_openai_api_key_here"
+    api_key = os.getenv("GOOGLE_API_KEY", "")
+    return not api_key or api_key == "your_google_api_key_here"
 
 
 def calculate_for_question(df: pd.DataFrame, question: str) -> Dict[str, Any]:
@@ -207,35 +209,35 @@ def calculate_for_question(df: pd.DataFrame, question: str) -> Dict[str, Any]:
 
 
 def generate_ai_response(question: str, calc_result: Dict, demo_mode: bool = False) -> Dict:
-    """Generate AI response using calculated data."""
+    """Generate AI response using calculated data via Google Gemini."""
 
     if demo_mode or is_demo_mode():
         return generate_demo_response(question, calc_result)
 
-    client = get_openai_client()
-    if not client:
+    model = get_gemini_model()
+    if not model:
         return generate_demo_response(question, calc_result)
 
     # Build a compact evidence summary (NOT the full dataset)
     evidence_summary = json.dumps(calc_result["calculations"], indent=2, default=str)
     question_type = calc_result["question_type"]
 
-    system_prompt = """You are a business intelligence analyst. You analyze calculated data and provide clear,
-explainable business insights. IMPORTANT RULES:
+    prompt = f"""You are a business intelligence analyst. You analyze calculated data and provide clear, explainable business insights.
+
+IMPORTANT RULES:
 1. NEVER invent numbers. All numbers come from the provided calculations.
 2. Always reference the specific calculated values in your response.
 3. Use cautious language: 'The data suggests...', 'Based on the analysis...'
 4. If data is insufficient, say so clearly.
-5. Be concise and actionable."""
+5. Be concise and actionable.
 
-    user_prompt = f"""User Question: {question}
-
+User Question: {question}
 Question Type: {question_type}
 
 Calculated Results (from Python/Pandas - DO NOT modify these numbers):
 {evidence_summary}
 
-Provide a JSON response with these exact fields:
+Respond ONLY with valid JSON (no markdown, no code fences) with these exact fields:
 {{
   "answer": "Clear 2-3 sentence explanation referencing the calculated values",
   "business_impact": "Why this matters for the business",
@@ -243,17 +245,14 @@ Provide a JSON response with these exact fields:
 }}"""
 
     try:
-        response = client.chat.completions.create(
-            model="gpt-3.5-turbo",
-            messages=[
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": user_prompt}
-            ],
-            temperature=0.3,
-            max_tokens=500
-        )
-
-        content = response.choices[0].message.content
+        response = model.generate_content(prompt)
+        content = response.text.strip()
+        # Strip markdown code fences if Gemini wraps in ```json
+        if content.startswith("```"):
+            content = content.split("```")[1]
+            if content.startswith("json"):
+                content = content[4:]
+        content = content.strip()
         try:
             parsed = json.loads(content)
             return {
@@ -268,8 +267,9 @@ Provide a JSON response with these exact fields:
                 "recommendation": "Analyze the source data to make informed decisions."
             }
     except Exception as e:
-        print(f"OpenAI error: {e}")
+        print(f"Gemini error: {e}")
         return generate_demo_response(question, calc_result)
+
 
 
 def generate_demo_response(question: str, calc_result: Dict) -> Dict:
@@ -600,8 +600,8 @@ def generate_decision_response(df: pd.DataFrame, question: str) -> Dict:
         f"The available dataset indicates clear patterns in product and regional performance."
     )
 
-    client = get_openai_client()
-    if client and not is_demo_mode():
+    model = get_gemini_model()
+    if model and not is_demo_mode():
         try:
             prompt = f"""Based on these calculated business metrics, answer the user's question:
 
@@ -615,16 +615,10 @@ Provide a data-backed response using cautious language like 'The data suggests..
 
 Response format: 2-3 paragraphs with specific data references."""
 
-            response = client.chat.completions.create(
-                model="gpt-3.5-turbo",
-                messages=[{"role": "user", "content": prompt}],
-                temperature=0.3,
-                max_tokens=400
-            )
-            ai_text = response.choices[0].message.content
-            recommendation = ai_text
+            response = model.generate_content(prompt)
+            recommendation = response.text.strip()
         except Exception as e:
-            print(f"AI decision error: {e}")
+            print(f"Gemini decision error: {e}")
 
     return {
         "question": question,
